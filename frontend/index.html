@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Energy Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2rem;
+        }
+        
+        .card {
+            background: white;
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }
+        
+        .card h2 {
+            color: #333;
+            margin-bottom: 20px;
+            font-size: 1.3rem;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #555;
+            font-weight: 500;
+        }
+        
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.3s;
+        }
+        
+        button:hover {
+            background: #5568d3;
+        }
+        
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+        }
+        
+        .result.success {
+            background: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        
+        .result.error {
+            background: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+        
+        .readings-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .reading-item {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .reading-item .device {
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .reading-item .power {
+            color: #667eea;
+            font-size: 1.2rem;
+            font-weight: bold;
+        }
+        
+        .reading-item .timestamp {
+            color: #777;
+            font-size: 0.85rem;
+        }
+        
+        .loading {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+        
+        .no-data {
+            text-align: center;
+            color: #666;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚡ Energy Monitoring Dashboard</h1>
+        
+        <div class="card">
+            <h2>📥 Submit Energy Reading</h2>
+            <form id="readingForm">
+                <div class="form-group">
+                    <label for="siteId">Site ID</label>
+                    <input type="text" id="siteId" required placeholder="e.g., site-001">
+                </div>
+                <div class="form-group">
+                    <label for="deviceId">Device ID</label>
+                    <input type="text" id="deviceId" required placeholder="e.g., meter-42">
+                </div>
+                <div class="form-group">
+                    <label for="powerReading">Power Reading (Watts)</label>
+                    <input type="number" id="powerReading" required step="0.1" placeholder="e.g., 1500.5">
+                </div>
+                <div class="form-group">
+                    <label for="timestamp">Timestamp</label>
+                    <input type="datetime-local" id="timestamp" required>
+                </div>
+                <button type="submit" id="submitBtn">Submit Reading</button>
+            </form>
+            <div id="submitResult" class="result"></div>
+        </div>
+        
+        <div class="card">
+            <h2>📊 View Site Readings</h2>
+            <div class="form-group">
+                <label for="querySiteId">Site ID</label>
+                <input type="text" id="querySiteId" placeholder="e.g., site-001">
+            </div>
+            <button id="fetchBtn">Fetch Readings</button>
+            <div id="readingsResult">
+                <div class="readings-list" id="readingsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Update these for your environment
+        const INGESTION_API_URL = localStorage.getItem('ingestionApiUrl') || 'http://localhost:8000';
+        const PROCESSING_API_URL = localStorage.getItem('processingApiUrl') || 'http://localhost:8001';
+        
+        // Set default timestamp to now
+        document.getElementById('timestamp').value = new Date().toISOString().slice(0, 16);
+        
+        // Store API URLs in localStorage for easy configuration
+        document.getElementById('readingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const siteId = document.getElementById('siteId').value;
+            const deviceId = document.getElementById('deviceId').value;
+            const powerReading = parseFloat(document.getElementById('powerReading').value);
+            const timestamp = document.getElementById('timestamp').value;
+            
+            const submitBtn = document.getElementById('submitBtn');
+            const resultDiv = document.getElementById('submitResult');
+            
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            resultDiv.className = 'result';
+            resultDiv.textContent = '';
+            
+            try {
+                const response = await fetch(`${INGESTION_API_URL}/readings`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        site_id: siteId,
+                        device_id: deviceId,
+                        power_reading: powerReading,
+                        timestamp: new Date(timestamp).toISOString()
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    resultDiv.className = 'result success';
+                    resultDiv.textContent = `✅ Reading submitted successfully! Stream ID: ${data.stream_id}`;
+                } else {
+                    const error = await response.json();
+                    resultDiv.className = 'result error';
+                    resultDiv.textContent = `❌ Error: ${error.detail || 'Failed to submit reading'}`;
+                }
+            } catch (error) {
+                resultDiv.className = 'result error';
+                resultDiv.textContent = `❌ Network error: ${error.message}. Make sure the API is running at ${INGESTION_API_URL}`;
+            }
+            
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Reading';
+        });
+        
+        document.getElementById('fetchBtn').addEventListener('click', async () => {
+            const siteId = document.getElementById('querySiteId').value;
+            const readingsList = document.getElementById('readingsList');
+            
+            if (!siteId) {
+                readingsList.innerHTML = '<div class="no-data">Please enter a Site ID</div>';
+                return;
+            }
+            
+            readingsList.innerHTML = '<div class="loading">Loading readings...</div>';
+            
+            try {
+                const response = await fetch(`${PROCESSING_API_URL}/sites/${siteId}/readings`);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    if (data.readings && data.readings.length > 0) {
+                        readingsList.innerHTML = data.readings.map(reading => `
+                            <div class="reading-item">
+                                <div class="device">📍 ${reading.device_id}</div>
+                                <div class="power">⚡ ${reading.power_reading} W</div>
+                                <div class="timestamp">🕐 ${new Date(reading.timestamp).toLocaleString()}</div>
+                            </div>
+                        `).join('');
+                    } else {
+                        readingsList.innerHTML = '<div class="no-data">No readings found for this site</div>';
+                    }
+                } else {
+                    const error = await response.json();
+                    readingsList.innerHTML = `<div class="no-data">Error: ${error.detail || 'Failed to fetch readings'}</div>`;
+                }
+            } catch (error) {
+                readingsList.innerHTML = `<div class="no-data">Network error: ${error.message}. Make sure the API is running at ${PROCESSING_API_URL}</div>`;
+            }
+        });
+    </script>
+</body>
+</html>
