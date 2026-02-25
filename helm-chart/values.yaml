@@ -1,0 +1,139 @@
+# Assignment ID for labeling resources
+assignmentId: "DE43B346-214A-4394-BB61-BC4E5874A95A"
+
+# Global configuration
+global:
+  redis:
+    host: redis-master
+    port: 6379
+  stream:
+    name: energy_readings
+  consumerGroup:
+    name: processing_group
+
+# Redis configuration
+redis:
+  enabled: true
+  fullnameOverride: redis-master
+  architecture: standalone
+  auth:
+    enabled: true
+  replica:
+    replicaCount: 0
+  commonLabels:
+    assignment-id: "DE43B346-214A-4394-BB61-BC4E5874A95A"
+
+# Ingestion API configuration
+ingestionApi:
+  enabled: true
+  fullnameOverride: ingestion-api
+  replicaCount: 1
+  image:
+    repository: ingestion-api
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+  env:
+    - name: REDIS_HOST
+      value: "redis-master"
+    - name: REDIS_PORT
+      value: "6379"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 256Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 10
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8000
+    initialDelaySeconds: 5
+    periodSeconds: 5
+  commonLabels:
+    assignment-id: "DE43B346-214A-4394-BB61-BC4E5874A95A"
+
+# Processing Service configuration
+processingService:
+  enabled: true
+  fullnameOverride: processing-service
+  replicaCount: 1
+  image:
+    repository: processing-service
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8001
+  env:
+    - name: REDIS_HOST
+      value: "redis-master"
+    - name: REDIS_PORT
+      value: "6379"
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  livenessProbe:
+    httpGet:
+      path: /health
+      port: 8001
+    initialDelaySeconds: 15
+    periodSeconds: 10
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 8001
+    initialDelaySeconds: 10
+    periodSeconds: 5
+  commonLabels:
+    assignment-id: "DE43B346-214A-4394-BB61-BC4E5874A95A"
+
+# Frontend configuration (bonus)
+frontend:
+  enabled: true
+  fullnameOverride: frontend
+  replicaCount: 1
+  image:
+    repository: frontend
+    tag: latest
+    pullPolicy: IfNotPresent
+  service:
+    type: LoadBalancer
+    port: 3000
+  env:
+    - name: INGESTION_API_URL
+      value: "http://ingestion-api:8000"
+    - name: PROCESSING_API_URL
+      value: "http://processing-service:8001"
+  resources:
+    limits:
+      cpu: 300m
+      memory: 128Mi
+    requests:
+      cpu: 50m
+      memory: 64Mi
+  commonLabels:
+    assignment-id: "DE43B346-214A-4394-BB61-BC4E5874A95A"
+
+# KEDA Autoscaling configuration
+keda:
+  enabled: true
+  scaledObject:
+    minReplicaCount: 1
+    maxReplicaCount: 10
+    pollingInterval: 15
+    cooldownPeriod: 300
+    threshold: 5
