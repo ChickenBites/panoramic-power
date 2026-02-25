@@ -1,0 +1,24 @@
+{{- if .Values.keda.enabled }}
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ .Values.processingService.fullnameOverride }}-keda
+  labels:
+    app.kubernetes.io/name: {{ .Values.processingService.fullnameOverride }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    assignment-id: {{ .Values.assignmentId }}
+spec:
+  scaleTargetRef:
+    name: {{ .Values.processingService.fullnameOverride }}
+  pollingInterval: {{ .Values.keda.scaledObject.pollingInterval }}
+  cooldownPeriod: {{ .Values.keda.scaledObject.cooldownPeriod }}
+  minReplicaCount: {{ .Values.keda.scaledObject.minReplicaCount }}
+  maxReplicaCount: {{ .Values.keda.scaledObject.maxReplicaCount }}
+  triggers:
+    - type: redis
+      metadata:
+        address: "{{ .Values.global.redis.host }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.global.redis.port }}"
+        listName: {{ .Values.global.stream.name }}
+        listLength: "{{ .Values.keda.scaledObject.threshold }}"
+{{- end }}
