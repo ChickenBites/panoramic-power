@@ -22,6 +22,7 @@ spec:
     - type: redis
       metadata:
         address: "{{ .Values.global.redis.host }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.global.redis.port }}"
-        listName: {{ .Values.global.stream.name }}
-        listLength: "{{ .Values.keda.scaledObject.threshold }}"
+        streamName: {{ .Values.global.stream.name }}
+        consumerGroupName: {{ .Values.global.consumerGroup.name }}
+        streamLength: "{{ .Values.keda.scaledObject.threshold }}"
 {{- end }}
