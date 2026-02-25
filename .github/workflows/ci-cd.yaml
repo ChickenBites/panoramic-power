@@ -64,74 +64,12 @@ jobs:
         run: |
           helm template energy-microservices helm-chart/ --debug
 
-  # Build Docker images
-  build:
-    name: Build Docker Images
-    runs-on: ubuntu-latest
+  # Build and Deploy to local Kubernetes (self-hosted runner)
+  build-and-deploy:
+    name: Build & Deploy to Local Kubernetes
+    runs-on: [self-hosted, macos, minikube]
     needs: [lint, helm-lint]
-    if: github.event_name == 'push'
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Login to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=sha,prefix={{branch}}-
-            type=raw,value=latest,enable={{is_default_branch}}
-
-      - name: Build and push ingestion-api
-        uses: docker/build-push-action@v5
-        with:
-          context: ./ingestion-api
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ingestion-api:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push processing-service
-        uses: docker/build-push-action@v5
-        with:
-          context: ./processing-service
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/processing-service:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Build and push frontend
-        uses: docker/build-push-action@v5
-        with:
-          context: ./frontend
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend:${{ github.sha }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-  # Deploy to Kubernetes (manual trigger)
-  deploy:
-    name: Deploy to Kubernetes
-    runs-on: ubuntu-latest
-    needs: [build]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-    environment: production
     
     steps:
       - name: Checkout code
@@ -142,21 +80,34 @@ jobs:
         with:
           version: v3.14.0
 
-      - name: Configure Kubernetes credentials
-        uses: azure/k8s-set-context@v4
-        with:
-          kubeconfig: ${{ secrets.KUBECONFIG }}
+      - name: Build ingestion-api image
+        run: |
+          docker build -t ingestion-api:${{ github.sha }} ./ingestion-api
 
-      - name: Deploy Helm chart
+      - name: Build processing-service image
+        run: |
+          docker build -t processing-service:${{ github.sha }} ./processing-service
+
+      - name: Build frontend image
+        run: |
+          docker build -t frontend:${{ github.sha }} ./frontend
+
+      - name: Load images into minikube
+        run: |
+          minikube image load ingestion-api:${{ github.sha }}
+          minikube image load processing-service:${{ github.sha }}
+          minikube image load frontend:${{ github.sha }}
+
+      - name: Deploy to minikube
         run: |
           helm upgrade --install energy-microservices helm-chart/ \
             --namespace energy-system \
             --create-namespace \
-            --set ingestionApi.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/ingestion-api \
+            --set ingestionApi.image.repository=ingestion-api \
             --set ingestionApi.image.tag=${{ github.sha }} \
-            --set processingService.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/processing-service \
+            --set processingService.image.repository=processing-service \
             --set processingService.image.tag=${{ github.sha }} \
-            --set frontend.image.repository=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}/frontend \
+            --set frontend.image.repository=frontend \
             --set frontend.image.tag=${{ github.sha }} \
             --wait \
             --timeout 5m
@@ -165,3 +116,4 @@ jobs:
         run: |
           kubectl get pods -n energy-system
           kubectl get services -n energy-system
+          minikube service list -n energy-system
