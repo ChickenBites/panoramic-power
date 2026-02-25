@@ -6,8 +6,11 @@ metadata:
   labels:
     app.kubernetes.io/name: {{ .Values.processingService.fullnameOverride }}
     app.kubernetes.io/instance: {{ .Release.Name }}
-    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    app.kubernetes.io/managed-by: Helm
     assignment-id: {{ .Values.assignmentId }}
+  annotations:
+    meta.helm.sh/release-name: {{ .Release.Name }}
+    meta.helm.sh/release-namespace: {{ .Release.Namespace }}
 spec:
   scaleTargetRef:
     name: {{ .Values.processingService.fullnameOverride }}
