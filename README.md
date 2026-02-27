@@ -151,7 +151,7 @@ helm upgrade energy-microservices ./helm-chart \
   --set keda.enabled=true
 ```
 
-### Using Kind (Local Development)
+### Using minikube (Local Development)
 
 1. Create a minikube cluster:
 ```bash
