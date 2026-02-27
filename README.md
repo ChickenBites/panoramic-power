@@ -153,9 +153,9 @@ helm upgrade energy-microservices ./helm-chart \
 
 ### Using Kind (Local Development)
 
-1. Create a kind cluster:
+1. Create a minikube cluster:
 ```bash
-kind create cluster --name energy-cluster
+minikube start --driver=docker
 ```
 
 2. Install KEDA:
@@ -163,10 +163,11 @@ kind create cluster --name energy-cluster
 kubectl apply -f https://github.com/kedacore/keda/releases/download/v2.14.0/keda-2.14.0.yaml
 ```
 
-3. Load Docker images into kind:
+3. Load Docker images into minikube:
 ```bash
-kind load docker-image ingestion-api:latest --name energy-cluster
-kind load docker-image processing-service:latest --name energy-cluster
+minikube image load ingestion-api:latest
+minikube image load processing-service:latest
+minikube image load frontend:latest
 ```
 
 4. Deploy:
@@ -184,8 +185,11 @@ kubectl get pods -n energy-system
 kubectl get services -n energy-system
 
 # Check logs
+minikube logs
 kubectl logs -n energy-system -l app=ingestion-api
 kubectl logs -n energy-system -l app=processing-service
+kubectl logs -n energy-system -l app=frontend
+
 ```
 
 ## CI/CD
@@ -211,7 +215,7 @@ For deployment, add the following secrets to your GitHub repository:
 | `global.redis.port` | Redis port | `6379` |
 | `ingestionApi.replicaCount` | Number of ingestion API pods | `1` |
 | `processingService.replicaCount` | Number of processing service pods | `1` |
-| `keda.enabled` | Enable KEDA autoscaling | `false` |
+| `keda.enabled` | Enable KEDA autoscaling | `true` |
 | `keda.scaledObject.minReplicaCount` | Minimum replicas | `1` |
 | `keda.scaledObject.maxReplicaCount` | Maximum replicas | `10` |
 | `keda.scaledObject.threshold` | Scaling threshold | `5` |
@@ -254,4 +258,3 @@ For deployment, add the following secrets to your GitHub repository:
 ## License
 
 MIT
-# Test commit to trigger CI/CD

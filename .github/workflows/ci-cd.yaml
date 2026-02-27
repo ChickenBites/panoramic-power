@@ -67,7 +67,7 @@ jobs:
   # Build and Deploy to local Kubernetes (self-hosted runner)
   build-and-deploy:
     name: Build & Deploy to Local Kubernetes
-    runs-on: [self-hosted, macos, minikube]
+    runs-on: [self-hosted, macos, minikube, kind]
     needs: [lint, helm-lint]
     if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
     
