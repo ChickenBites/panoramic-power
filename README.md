@@ -192,6 +192,52 @@ kubectl logs -n energy-system -l app=frontend
 
 ```
 
+## Local Image Development
+
+### Building Local Images
+
+To use locally built images with the Helm chart, you need to:
+
+1. Build the Docker images for each service:
+```bash
+# Build ingestion-api image
+cd ingestion-api
+docker build -t ingestion-api:latest .
+
+# Build processing-service image
+cd ../processing-service
+docker build -t processing-service:latest .
+
+# Build frontend image
+cd ../frontend
+docker build -t frontend:latest .
+```
+
+2. Update Helm chart values to use local images:
+```bash
+# Edit helm-chart/values.yaml and change pullPolicy to Never
+# This ensures Kubernetes uses local images instead of pulling from registry
+```
+
+3. Deploy with local images:
+```bash
+helm install energy-microservices ./helm-chart --namespace energy-system --create-namespace
+```
+
+### Helm Chart Values for Local Development
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `assignmentId` | Unique assignment identifier | `DE43B346-214A-4394-BB61-BC4E5874A95A` |
+| `global.redis.host` | Redis hostname | `redis-master` |
+| `global.redis.port` | Redis port | `6379` |
+| `ingestionApi.replicaCount` | Number of ingestion API pods | `1` |
+| `processingService.replicaCount` | Number of processing service pods | `1` |
+| `keda.enabled` | Enable KEDA autoscaling | `true` |
+| `keda.scaledObject.minReplicaCount` | Minimum replicas | `1` |
+| `keda.scaledObject.maxReplicaCount` | Maximum replicas | `10` |
+| `keda.scaledObject.threshold` | Scaling threshold | `5` |
+
 ## CI/CD
 
 The project includes a GitHub Actions workflow (`.github/workflows/ci-cd.yaml`) that:
